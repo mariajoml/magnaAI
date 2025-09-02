@@ -131,15 +131,23 @@ Recuerda: Tu misión es empoderar financieramente a las mujeres que te consultan
     ])
 
     # Generar respuesta usando la API de OpenAI con el modelo más económico
-    stream = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        stream=True,
-        temperature=0.7,
-        max_tokens=1000
-    )
-
-    # Transmitir la respuesta al chat y almacenarla en el estado de sesión
-    with st.chat_message("assistant"):
-        response = st.write_stream(stream)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            stream=False,
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        assistant_response = response.choices[0].message.content
+        
+        # Mostrar la respuesta del asistente
+        with st.chat_message("assistant"):
+            st.markdown(assistant_response)
+        
+        # Almacenar en el estado de sesión
+        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+        
+    except Exception as e:
+        st.error(f"Error al generar respuesta: {str(e)}")
