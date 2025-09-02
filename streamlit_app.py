@@ -63,14 +63,31 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Configuración automática de API key desde secrets.toml
+# Configuración automática de API key desde secrets.toml o variables de entorno
+import os
+
+openai_api_key = None
+
+# Intentar obtener desde secrets.toml
 try:
     openai_api_key = st.secrets["openai_api_key"]
-    if not openai_api_key or openai_api_key == "tu_api_key_aqui":
-        st.error("❌ Error: API key no configurada correctamente")
-        st.stop()
+    if openai_api_key and openai_api_key != "tu_api_key_aqui":
+        st.success("✅ API key cargada desde secrets.toml", icon="🔐")
+    else:
+        openai_api_key = None
 except (KeyError, FileNotFoundError):
-    st.error("❌ Error: No se encontró la configuración de API key")
+    openai_api_key = None
+
+# Si no está en secrets, intentar desde variable de entorno
+if not openai_api_key:
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        st.success("✅ API key cargada desde variable de entorno", icon="🔐")
+
+# Si no se encuentra en ningún lado, mostrar error
+if not openai_api_key:
+    st.error("❌ Error: No se encontró la API key de OpenAI")
+    st.info("💡 **Solución:** Asegúrate de que el archivo `.streamlit/secrets.toml` contenga tu API key")
     st.stop()
 
 # Inicializar cliente OpenAI
