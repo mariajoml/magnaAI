@@ -63,50 +63,38 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Información sobre la API key
-st.info("🔑 **Para usar Magna, necesitas una API key de OpenAI.** Puedes obtenerla [aquí](https://platform.openai.com/account/api-keys).", icon="🗝️")
-
-# Configuración de API key - Prioridad: secrets.toml > input manual
+# Configuración automática de API key desde secrets.toml
 try:
-    # Intentar obtener la API key desde secrets.toml
     openai_api_key = st.secrets["openai_api_key"]
-    if openai_api_key and openai_api_key != "tu_api_key_aqui":
-        st.success("✅ API key configurada desde archivo de secretos", icon="🔐")
-    else:
-        raise KeyError("API key no configurada en secrets.toml")
+    if not openai_api_key or openai_api_key == "tu_api_key_aqui":
+        st.error("❌ Error: API key no configurada correctamente")
+        st.stop()
 except (KeyError, FileNotFoundError):
-    # Si no está en secrets, pedir al usuario
-    openai_api_key = st.text_input("OpenAI API Key", type="password", help="Ingresa tu API key de OpenAI o configúrala en .streamlit/secrets.toml")
-    if not openai_api_key:
-        st.info("🔑 **Para usar Magna, necesitas una API key de OpenAI.** Puedes obtenerla [aquí](https://platform.openai.com/account/api-keys).", icon="🗝️")
-        st.info("💡 **Tip:** Puedes configurar tu API key permanentemente creando un archivo `.streamlit/secrets.toml` con: `openai_api_key = 'tu_key_aqui'`", icon="💡")
+    st.error("❌ Error: No se encontró la configuración de API key")
+    st.stop()
 
-if openai_api_key:
+# Inicializar cliente OpenAI
+client = OpenAI(api_key=openai_api_key)
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Crear variable de estado de sesión para almacenar los mensajes del chat
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Mostrar los mensajes existentes del chat
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Crear campo de entrada de chat para que el usuario pueda escribir un mensaje
+if prompt := st.chat_input("¿En qué puedo ayudarte con tus finanzas?"):
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+    # Almacenar y mostrar el mensaje actual del usuario
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Sistema prompt para Magna - Asistente financiero especializado
-        system_prompt = """Eres Magna, un asistente financiero especializado en ayudar a mujeres a tomar control de sus finanzas personales y profesionales. 
+    # Sistema prompt para Magna - Asistente financiero especializado
+    system_prompt = """Eres Magna, un asistente financiero especializado en ayudar a mujeres a tomar control de sus finanzas personales y profesionales. 
 
 Tu personalidad:
 - Empática, motivadora y comprensiva
@@ -135,22 +123,23 @@ Directrices importantes:
 
 Recuerda: Tu misión es empoderar financieramente a las mujeres que te consultan."""
 
-        # Preparar mensajes con el sistema prompt
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend([
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages
-        ])
+    # Preparar mensajes con el sistema prompt
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend([
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages
+    ])
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
-        )
+    # Generar respuesta usando la API de OpenAI con el modelo más económico
+    stream = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        stream=True,
+        temperature=0.7,
+        max_tokens=1000
+    )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Transmitir la respuesta al chat y almacenarla en el estado de sesión
+    with st.chat_message("assistant"):
+        response = st.write_stream(stream)
+    st.session_state.messages.append({"role": "assistant", "content": response})
